@@ -35,6 +35,13 @@ export default function ImpostrApp() {
       localStorage.setItem("impostr_pid", storedId);
     }
     setPlayerId(storedId);
+
+    // The lobby QR code links to ?join=CODE
+    const joinCode = new URLSearchParams(window.location.search).get("join");
+    if (joinCode) {
+      setRoomCode(joinCode.toUpperCase());
+      window.history.replaceState({}, document.title, "/");
+    }
   }, []);
 
   useEffect(() => {
