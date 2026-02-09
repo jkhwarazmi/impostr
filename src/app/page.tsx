@@ -190,6 +190,7 @@ export default function ImpostrApp() {
           <input
             className="w-full bg-gray-700 p-3 rounded text-center text-lg outline-none focus:ring-2 focus:ring-purple-500"
             placeholder="Your Nickname"
+            maxLength={20}
             value={name} onChange={e => setName(e.target.value)}
           />
           <div className="grid grid-cols-2 gap-2">
@@ -198,6 +199,7 @@ export default function ImpostrApp() {
                <input
                 className="bg-gray-700 p-3 rounded text-center outline-none uppercase"
                 placeholder="Code"
+                maxLength={4}
                 value={roomCode} onChange={e => setRoomCode(e.target.value)}
               />
               <button onClick={joinRoom} className="bg-gray-600 hover:bg-gray-500 py-2 rounded font-bold">Join</button>
@@ -255,6 +257,8 @@ export default function ImpostrApp() {
              <input
                className="w-full bg-gray-700 p-2 rounded"
                placeholder="Custom Topic (Optional)"
+               maxLength={60}
+               value={roomData.settings.category || ""}
                onChange={(e) => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, category: e.target.value })}
              />
              <div className="flex justify-between text-sm text-gray-400">
