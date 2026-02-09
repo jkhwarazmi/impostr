@@ -66,7 +66,7 @@ export default function ImpostrApp() {
     await set(ref(db, `rooms/${code}`), {
       code,
       state: "LOBBY",
-      settings: { imposters: 1, type: "noun", category: "" },
+      settings: { imposters: 1, type: "question", category: "" },
       players: { [playerId]: newPlayer }
     });
     setRoomCode(code);
@@ -209,14 +209,14 @@ export default function ImpostrApp() {
           <div className="bg-gray-800 p-4 rounded-xl space-y-4">
              <div className="flex gap-2">
                 <button
-                  onClick={() => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, type: "noun" })}
-                  className={`flex-1 py-2 rounded ${roomData.settings.type === 'noun' ? 'bg-purple-600' : 'bg-gray-700'}`}>
-                  Nouns
-                </button>
-                <button
                   onClick={() => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, type: "question" })}
                   className={`flex-1 py-2 rounded ${roomData.settings.type === 'question' ? 'bg-purple-600' : 'bg-gray-700'}`}>
                   Questions
+                </button>
+                <button
+                  onClick={() => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, type: "noun" })}
+                  className={`flex-1 py-2 rounded ${roomData.settings.type === 'noun' ? 'bg-purple-600' : 'bg-gray-700'}`}>
+                  Nouns
                 </button>
              </div>
              <input
