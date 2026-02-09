@@ -3,22 +3,68 @@ import { NextResponse } from "next/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+// --- ARCHETYPES (SHORT & FUN) ---
+const QUESTION_ARCHETYPES = [
+  {
+    type: "THE_HYPOTHETICAL_LIMIT",
+    structure: "Question MUST ask for a Count (Days, Hours, Items, People).",
+    semantic_rule: "Ask about SURVIVAL LIMITS, GLUTTONY, or PHYSICAL FEATS.",
+    examples: `
+      1. Common: 'How many 5-year-olds could you take in a fight?' vs Imposter: 'How many chicken nuggets could you eat in one sitting?'
+      2. Common: 'How many days could you survive in the wild?' vs Imposter: 'How many hours could you listen to Baby Shark on loop?'
+      3. Common: 'How many work days could you go without a shower?' vs Imposter: 'How many years would you stay in prison for £10 million?'
+    `
+  },
+  {
+    type: "THE_SOCIAL_PRICE",
+    structure: "Question MUST ask for a Price in GBP (£).",
+    semantic_rule: "Ask about the price of DIGNITY, EMBARRASSMENT or INCONVENIENCE.",
+    examples: `
+      1. Common: 'Price to leak your entire browser history?' vs Imposter: 'Price to punch your best friend in the face?'
+      2. Common: 'Price to never use a smartphone again?' vs Imposter: 'Price to wear a wedding dress to work tomorrow?'
+      3. Common: 'Price to legally change your name to "Gary Glitter"?' vs Imposter: 'Price to sleep in a bin for a week?'
+    `
+  },
+  {
+    type: "THE_IRRATIONAL_CONFIDENCE",
+    structure: "Question MUST start with 'On a scale of 1-10...'",
+    semantic_rule: "Ask about DELUSIONAL SKILLS, FIGHTING ANIMALS, or SURVIVAL SCENARIOS.",
+    examples: `
+      1. Common: 'Scale 1-10, confidence in landing a plane in an emergency?' vs Imposter: 'Scale 1-10, confidence in winning a fight against a bear?'
+      2. Common: 'Scale 1-10, how well would you do in a fight against Mike Tyson?' vs Imposter: 'Scale 1-10, how good are you at dancing?'
+      3. Common: 'Scale 1-10, chance of surviving a Zombie apocalypse?' vs Imposter: 'Scale 1-10, how good do you look in a hat?'
+    `
+  },
+  {
+    type: "THE_PERCENTAGE_CHANCE",
+    structure: "Question MUST ask for a Percentage (0-100%).",
+    semantic_rule: "Ask about LUCK, ACCIDENTS, or PERSONALITY FLAWS.",
+    examples: `
+      1. Common: 'Odds you would join a cult by accident?' vs Imposter: 'Odds you could get away with a bank robbery?'
+      2. Common: 'Percentage chance we are currently in a simulation?' vs Imposter: 'Percentage of your brain thinking about food right now?'
+      3. Common: 'Odds you will be famous one day?' vs Imposter: 'Odds you would survive on a desert island?'
+    `
+  }
+];
+
 export async function POST(req: Request) {
   try {
-    const { type, customPrompt } = await req.json(); // type: 'noun' or 'question'
+    const { type, customPrompt } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-09-2025" });
+    
+    // Pick a random archetype
+    const archetype = QUESTION_ARCHETYPES[Math.floor(Math.random() * QUESTION_ARCHETYPES.length)];
 
     let prompt = "";
 
-    // SHARED RULES FOR UK AUDIENCE
     const ukContext = `
-      TARGET AUDIENCE: United Kingdom (British).
-      CRITICAL LOCALIZATION RULES:
-      1. NO US-specific concepts (e.g., "Jaywalking", "GPA", "Spring Break", "Thanksgiving", "4th of July", "Inches/Miles" unless standard).
-      2. Use UK Terminology: "Holiday" (not Vacation), "Pavement" (not Sidewalk), "University" (not College), "Mobile" (not Cell).
-      3. Currency: Must use £ (Pounds) if money is mentioned.
-      4. Avoid US Sports references (NFL, Baseball) unless globally famous.
+      TARGET AUDIENCE: British Dinner Party / Social Game.
+      TONE: Fun, Relatable, Hypothetical.
+      
+      LOCALIZATION RULES:
+      1. UK Spelling (Colour, Favourite).
+      2. £ Pounds for money.
     `;
 
     if (type === "question") {
@@ -27,46 +73,46 @@ export async function POST(req: Request) {
         
         Generate a JSON object for a social deduction game.
         
-        CRITICAL RULE: Do NOT generate factual trivia. 
-        Generate SUBJECTIVE, OPINION-BASED, or SOCIAL NORM questions where answers generally fall in a similar range.
-
-        Goal: Two DIFFERENT questions that expect the SAME TYPE OF ANSWER (e.g., an age, a price in £, a rating 1-10).
-
-        Context: ${customPrompt || "British social norms, mild dilemmas, or funny opinions"}.
+        STRICT ARCHETYPE: ${archetype.type}
+        
+        CONSTRAINT 2 (CLEAN TOPICS):
+        - NO Alcohol, Pubs, or Drinking questions.
+        - NO "Deep" or "Depressing" topics.
+        - Focus on fun hypotheticals and social debates.
+        
+        CONSTRAINT 3 (UNRELATED TOPICS):
+        The two questions must be about COMPLETELY different topics (e.g. Planes vs Geese) but share the exact same answer format/range.
+        
+        Constraint 4 (Structure):
+        ${archetype.structure}
+        
+        Context: ${customPrompt || "Fun social dilemmas"}.
 
         Requirements:
         1. 'common': The question for the majority.
-        2. 'imposter': A DIFFERENT question for the imposter.
-        3. 'category': Short label.
+        2. 'imposter': A DIFFERENT, UNRELATED question.
+        3. 'category': Short label describing the ANSWER TYPE.
         
-        Good Examples (UK/Universal):
-        - Common: "What is a socially acceptable time to go to the pub on a Sunday?" (Ans: ~12pm-2pm)
-        - Imposter: "What time do you usually have Sunday Roast?" (Ans: ~1pm-3pm)
-        
-        - Common: "How much is a reasonable price for a pint of beer in London?" (Ans: ~£6-£8)
-        - Imposter: "How much would you pay for a meal deal?" (Ans: ~£3-£5)
-        
-        - Common: "On a scale of 1-10, how annoying is the Tube in summer?" (Ans: High)
-        - Imposter: "On a scale of 1-10, how stressful is queue jumping?" (Ans: High)
+        Archetype Example (${archetype.type}):
+        ${archetype.examples}
 
         Output JSON only: { "common": string, "imposter": string, "category": string }
       `;
     } else {
-      // NOUN MODE
+      // NOUN MODE (unchanged)
       prompt = `
         ${ukContext}
         
         Generate a JSON object for a social deduction game.
         Mode: Nouns/Entities.
-        Context: ${customPrompt || "British Culture, Pop Culture, or General Knowledge"}.
+        Context: ${customPrompt || "Universal Pop Culture, Food, or Objects"}.
         
         Requirements:
         1. 'common': The word 80% of players receive.
         2. 'imposter': A DIFFERENT word that is closely related but distinct.
         3. 'category': Short label.
         
-        Example: Common: "Tesco", Imposter: "Sainsbury's".
-        Example: Common: "Fish and Chips", Imposter: "Sunday Roast".
+        Example: Common: "Coffee", Imposter: "Tea".
         
         Output JSON only: { "common": string, "imposter": string, "category": string }
       `;
@@ -74,7 +120,6 @@ export async function POST(req: Request) {
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    // Clean up markdown formatting if Gemini adds it
     const text = response.text().replace(/```json|```/g, "").trim();
     
     return NextResponse.json(JSON.parse(text));
