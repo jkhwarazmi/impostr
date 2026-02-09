@@ -34,6 +34,7 @@ export default function ImpostrApp() {
       storedId = uuidv4();
       localStorage.setItem("impostr_pid", storedId);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlayerId(storedId);
 
     // The lobby QR code links to ?join=CODE
@@ -114,7 +115,7 @@ export default function ImpostrApp() {
       const shuffled = [...playerIds].sort(() => 0.5 - Math.random());
       const imposterIds = new Set(shuffled.slice(0, imposterCount));
 
-      const updates: any = {};
+      const updates: Record<string, unknown> = {};
       updates[`rooms/${roomCode}/state`] = "PLAYING";
       updates[`rooms/${roomCode}/roundData`] = aiData;
 
@@ -302,7 +303,7 @@ export default function ImpostrApp() {
         </div>
 
         <p className="text-gray-400 mb-8 max-w-sm">
-          Discuss your answers. If someone's answer doesn't make sense for this {termLabel.toLowerCase()}, they might be the Imposter.
+          Discuss your answers. If someone&apos;s answer doesn&apos;t make sense for this {termLabel.toLowerCase()}, they might be the Imposter.
         </p>
 
         {amIHost ? (
