@@ -117,6 +117,7 @@ export default function ImpostrApp() {
         })
       });
       const aiData = await res.json();
+      if (!res.ok) throw new Error(aiData.error || res.statusText);
 
       const playerIds = Object.keys(roomData?.players || {});
       const imposterCount = Math.min(roomData?.settings?.imposters || 1, playerIds.length - 1);
@@ -137,9 +138,10 @@ export default function ImpostrApp() {
 
       await update(ref(db), updates);
     } catch (e) {
-      alert("Error starting game: " + e);
+      alert(`Couldn't start the round: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const castVote = async (targetId: string) => {

@@ -114,16 +114,14 @@ export async function POST(req: Request) {
     // Gemini sometimes wraps the JSON in a markdown code block
     const text = result.response.text().replace(/```json|```/g, "").trim();
 
-    return NextResponse.json(JSON.parse(text));
+    const { common, imposter, category } = JSON.parse(text);
+    if (![common, imposter, category].every((v) => typeof v === "string" && v)) {
+      throw new Error(`Incomplete response: ${text}`);
+    }
+
+    return NextResponse.json({ common, imposter, category });
   } catch (error) {
     console.error("Gemini Error:", error);
-    return NextResponse.json(
-      {
-        common: "Error generating",
-        imposter: "Manual Mode",
-        category: "System Error"
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Couldn't generate a prompt. Try again." }, { status: 502 });
   }
 }
