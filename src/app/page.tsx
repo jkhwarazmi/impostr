@@ -102,14 +102,14 @@ export default function ImpostrApp() {
       const res = await fetch("/api/generate", {
         method: "POST",
         body: JSON.stringify({
-          type: roomData?.settings.type,
-          customPrompt: roomData?.settings.category
+          type: roomData?.settings?.type || "question",
+          customPrompt: roomData?.settings?.category
         })
       });
       const aiData = await res.json();
 
       const playerIds = Object.keys(roomData?.players || {});
-      const imposterCount = Math.min(roomData?.settings.imposters || 1, playerIds.length - 1);
+      const imposterCount = Math.min(roomData?.settings?.imposters || 1, playerIds.length - 1);
 
       const shuffled = [...playerIds].sort(() => 0.5 - Math.random());
       const imposterIds = new Set(shuffled.slice(0, imposterCount));
@@ -152,10 +152,10 @@ export default function ImpostrApp() {
     await update(ref(db, `rooms/${roomCode}`), { state: "LOBBY", roundData: null });
   };
 
-  const amIHost = roomData?.players[playerId]?.isHost;
-  const myPlayer = roomData?.players[playerId];
+  const amIHost = roomData?.players?.[playerId]?.isHost;
+  const myPlayer = roomData?.players?.[playerId];
   const playersList = Object.values(roomData?.players || {});
-  const isQuestionMode = roomData?.settings.type === "question";
+  const isQuestionMode = roomData?.settings?.type === "question";
   const termLabel = isQuestionMode ? "Question" : "Word";
 
   if (!joined) {
@@ -186,6 +186,8 @@ export default function ImpostrApp() {
 
   // Lobby
   if (roomData?.state === "LOBBY") {
+    if (!roomData.settings) return <div className="text-white p-10">Loading Room Settings...</div>;
+
     return (
       <div className="min-h-screen bg-gray-900 text-white p-6 max-w-md mx-auto">
         <div className="flex justify-between items-center mb-6">
@@ -217,12 +219,12 @@ export default function ImpostrApp() {
              <div className="flex gap-2">
                 <button
                   onClick={() => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, type: "question" })}
-                  className={`flex-1 py-2 rounded ${roomData.settings.type === 'question' ? 'bg-purple-600' : 'bg-gray-700'}`}>
+                  className={`flex-1 py-2 rounded ${roomData.settings?.type === 'question' ? 'bg-purple-600' : 'bg-gray-700'}`}>
                   Questions
                 </button>
                 <button
                   onClick={() => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, type: "noun" })}
-                  className={`flex-1 py-2 rounded ${roomData.settings.type === 'noun' ? 'bg-purple-600' : 'bg-gray-700'}`}>
+                  className={`flex-1 py-2 rounded ${roomData.settings?.type === 'noun' ? 'bg-purple-600' : 'bg-gray-700'}`}>
                   Nouns
                 </button>
              </div>
@@ -232,10 +234,10 @@ export default function ImpostrApp() {
                onChange={(e) => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, category: e.target.value })}
              />
              <div className="flex justify-between text-sm text-gray-400">
-               <span>Imposters: {roomData.settings.imposters}</span>
+               <span>Imposters: {roomData.settings?.imposters || 1}</span>
                <input
                  type="range" min="1" max="3"
-                 value={roomData.settings.imposters}
+                 value={roomData.settings?.imposters || 1}
                  onChange={(e) => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, imposters: parseInt(e.target.value) })}
                 />
              </div>
