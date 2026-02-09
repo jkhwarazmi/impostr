@@ -76,12 +76,14 @@ export async function POST(req: Request) {
         RULES:
         1. ${archetype.structure}
         2. ${archetype.topic}
+        3. NO Alcohol, Pubs, or Drinking questions. NO "Deep" or "Depressing" topics.
+        4. The two questions must be about COMPLETELY different topics (e.g. Planes vs Geese) but share the exact same answer format/range.
 
-        Context: ${customPrompt || "British social norms, mild dilemmas, or funny opinions"}.
+        Context: ${customPrompt || "Fun social dilemmas"}.
 
         Requirements:
         1. 'common': The question for the majority.
-        2. 'imposter': A DIFFERENT question for the imposter.
+        2. 'imposter': A DIFFERENT, UNRELATED question.
         3. 'category': Short label describing the ANSWER TYPE.
 
         Examples:
@@ -95,15 +97,14 @@ export async function POST(req: Request) {
 
         Generate a JSON object for a social deduction game.
         Mode: Nouns/Entities.
-        Context: ${customPrompt || "British Culture, Pop Culture, or General Knowledge"}.
+        Context: ${customPrompt || "Universal Pop Culture, Food, or Objects"}.
 
         Requirements:
         1. 'common': The word 80% of players receive.
         2. 'imposter': A DIFFERENT word that is closely related but distinct.
         3. 'category': Short label.
 
-        Example: Common: "Tesco", Imposter: "Sainsbury's".
-        Example: Common: "Fish and Chips", Imposter: "Sunday Roast".
+        Example: Common: "Coffee", Imposter: "Tea".
 
         Output JSON only: { "common": string, "imposter": string, "category": string }
       `;
