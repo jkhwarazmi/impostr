@@ -56,6 +56,8 @@ export default function ImpostrApp() {
       const data = snapshot.val();
       if (data) {
         setRoomData(data);
+        // Next round's card should start face down
+        if (data.state !== "PLAYING") setRevealCard(false);
         if (!data.players || !data.players[playerId]) {
           alert("You have been kicked from the room.");
           setJoined(false);
