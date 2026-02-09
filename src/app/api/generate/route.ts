@@ -7,57 +7,66 @@ export async function POST(req: Request) {
   try {
     const { type, customPrompt } = await req.json(); // type: 'noun' or 'question'
 
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     let prompt = "";
 
+    // SHARED RULES FOR UK AUDIENCE
+    const ukContext = `
+      TARGET AUDIENCE: United Kingdom (British).
+      CRITICAL LOCALIZATION RULES:
+      1. NO US-specific concepts (e.g., "Jaywalking", "GPA", "Spring Break", "Thanksgiving", "4th of July", "Inches/Miles" unless standard).
+      2. Use UK Terminology: "Holiday" (not Vacation), "Pavement" (not Sidewalk), "University" (not College), "Mobile" (not Cell).
+      3. Currency: Must use £ (Pounds) if money is mentioned.
+      4. Avoid US Sports references (NFL, Baseball) unless globally famous.
+    `;
+
     if (type === "question") {
       prompt = `
-        Generate a JSON object for a social deduction game (like Spyfall).
+        ${ukContext}
         
-        CRITICAL RULE: Do NOT generate factual trivia questions (e.g., "Capital of France", "Lives of a cat"). 
-        Generate SUBJECTIVE, OPINION-BASED, or SOCIAL NORM questions where there is no single correct answer, but answers generally fall in a similar range.
+        Generate a JSON object for a social deduction game.
+        
+        CRITICAL RULE: Do NOT generate factual trivia. 
+        Generate SUBJECTIVE, OPINION-BASED, or SOCIAL NORM questions where answers generally fall in a similar range.
 
-        Goal: Generate two DIFFERENT questions that expect the SAME TYPE OF ANSWER (e.g., an age, a dollar amount, a frequency, a rating 1-10).
+        Goal: Two DIFFERENT questions that expect the SAME TYPE OF ANSWER (e.g., an age, a price in £, a rating 1-10).
 
-        Context: ${customPrompt || "Social norms, mild dilemmas, or funny opinions"}.
+        Context: ${customPrompt || "British social norms, mild dilemmas, or funny opinions"}.
 
         Requirements:
         1. 'common': The question for the majority.
         2. 'imposter': A DIFFERENT question for the imposter.
-        3. 'category': Short label (e.g., "Life Milestones", "Money").
+        3. 'category': Short label.
         
-        Good Examples (Subjective/Fuzzy):
-        - Common: "What is a socially acceptable time to wake up on a Sunday?" (Ans: ~9am-11am)
-        - Imposter: "What time do you usually start work?" (Ans: ~8am-9am)
-        [Result: Both answers are times, hard to distinguish].
-
-        - Common: "How much would you pay for a really good burger?" (Ans: ~$15-$25)
-        - Imposter: "How much is a movie ticket these days?" (Ans: ~$15-$20)
-        [Result: Both answers are similar dollar amounts].
-
-        - Common: "On a scale of 1-10, how annoying is traffic?" (Ans: High number)
-        - Imposter: "On a scale of 1-10, how stressful is public speaking?" (Ans: High number)
-        [Result: Both evoke negative high numbers].
-
-        Bad Example (Factual - AVOID THIS):
-        - "How many days are in a week?" vs "How many fingers do you have?" (Too rigid/obvious).
+        Good Examples (UK/Universal):
+        - Common: "What is a socially acceptable time to go to the pub on a Sunday?" (Ans: ~12pm-2pm)
+        - Imposter: "What time do you usually have Sunday Roast?" (Ans: ~1pm-3pm)
+        
+        - Common: "How much is a reasonable price for a pint of beer in London?" (Ans: ~£6-£8)
+        - Imposter: "How much would you pay for a meal deal?" (Ans: ~£3-£5)
+        
+        - Common: "On a scale of 1-10, how annoying is the Tube in summer?" (Ans: High)
+        - Imposter: "On a scale of 1-10, how stressful is queue jumping?" (Ans: High)
 
         Output JSON only: { "common": string, "imposter": string, "category": string }
       `;
     } else {
-      // NOUN MODE (unchanged)
+      // NOUN MODE
       prompt = `
+        ${ukContext}
+        
         Generate a JSON object for a social deduction game.
-        Mode: Nouns/Entities (Celebs, Objects, Places).
-        Context: ${customPrompt || "Pop culture or general knowledge"}.
+        Mode: Nouns/Entities.
+        Context: ${customPrompt || "British Culture, Pop Culture, or General Knowledge"}.
         
         Requirements:
         1. 'common': The word 80% of players receive.
         2. 'imposter': A DIFFERENT word that is closely related but distinct.
         3. 'category': Short label.
         
-        Example: Common: "Apple", Imposter: "Pear".
+        Example: Common: "Tesco", Imposter: "Sainsbury's".
+        Example: Common: "Fish and Chips", Imposter: "Sunday Roast".
         
         Output JSON only: { "common": string, "imposter": string, "category": string }
       `;
