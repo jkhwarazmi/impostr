@@ -22,6 +22,17 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const generateRoomCode = () =>
   Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
 
+const MIN_PLAYERS = 3;
+
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 export default function ImpostrApp() {
   const [playerId, setPlayerId] = useState<string>("");
   const [name, setName] = useState("");
@@ -107,6 +118,9 @@ export default function ImpostrApp() {
   };
 
   const startGame = async () => {
+    const playerIds = Object.keys(roomData?.players || {});
+    if (playerIds.length < MIN_PLAYERS) return;
+
     setLoading(true);
     try {
       const res = await fetch("/api/generate", {
@@ -119,11 +133,9 @@ export default function ImpostrApp() {
       const aiData = await res.json();
       if (!res.ok) throw new Error(aiData.error || res.statusText);
 
-      const playerIds = Object.keys(roomData?.players || {});
-      const imposterCount = Math.min(roomData?.settings?.imposters || 1, playerIds.length - 1);
-
-      const shuffled = [...playerIds].sort(() => 0.5 - Math.random());
-      const imposterIds = new Set(shuffled.slice(0, imposterCount));
+      // Imposters always need to be outnumbered
+      const imposterCount = Math.max(1, Math.min(roomData?.settings?.imposters || 1, Math.floor((playerIds.length - 1) / 2)));
+      const imposterIds = new Set(shuffle(playerIds).slice(0, imposterCount));
 
       const updates: Record<string, unknown> = {};
       updates[`rooms/${roomCode}/state`] = "PLAYING";
@@ -253,8 +265,8 @@ export default function ImpostrApp() {
                  onChange={(e) => update(ref(db, `rooms/${roomCode}/settings`), { ...roomData.settings, imposters: parseInt(e.target.value) })}
                 />
              </div>
-             <button disabled={loading} onClick={startGame} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-3 rounded font-bold text-lg">
-                {loading ? "Generating..." : "Start Game"}
+             <button disabled={loading || playersList.length < MIN_PLAYERS} onClick={startGame} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-3 rounded font-bold text-lg disabled:opacity-50">
+                {loading ? "Generating..." : playersList.length < MIN_PLAYERS ? `Need ${MIN_PLAYERS} players to start` : "Start Game"}
              </button>
           </div>
         ) : (
