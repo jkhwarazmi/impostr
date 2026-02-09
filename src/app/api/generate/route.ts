@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const { type, customPrompt } = await req.json(); // type: 'noun' or 'question'
 
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     let prompt = "";
 
