@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { ref, set, onValue, update, remove, child } from "firebase/database";
+import { ref, set, get, onValue, update, remove, child } from "firebase/database";
 import { v4 as uuidv4 } from "uuid";
 import { QRCodeSVG } from "qrcode.react";
 import { Trash2, Eye, EyeOff, Crown, RefreshCw, MessageCircle, AlertTriangle, Fingerprint } from "lucide-react";
@@ -17,7 +17,10 @@ type RoomData = {
   roundData?: { common: string; imposter: string; category: string };
 };
 
-const generateRoomCode = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+// No 0/O or 1/I so codes are easy to read out
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const generateRoomCode = () =>
+  Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
 
 export default function ImpostrApp() {
   const [playerId, setPlayerId] = useState<string>("");
@@ -67,9 +70,10 @@ export default function ImpostrApp() {
   }, [joined, roomCode, playerId]);
 
   const createRoom = async () => {
-    if (!name) return alert("Enter a name!");
-    const code = generateRoomCode();
-    const newPlayer: Player = { id: playerId, name, isHost: true };
+    if (!name.trim()) return alert("Enter a name!");
+    let code = generateRoomCode();
+    while ((await get(ref(db, `rooms/${code}`))).exists()) code = generateRoomCode();
+    const newPlayer: Player = { id: playerId, name: name.trim(), isHost: true };
 
     await set(ref(db, `rooms/${code}`), {
       code,
@@ -82,11 +86,14 @@ export default function ImpostrApp() {
   };
 
   const joinRoom = async () => {
-    if (!name || !roomCode) return alert("Enter name and code!");
-    const codeUpper = roomCode.toUpperCase();
+    if (!name.trim() || !roomCode.trim()) return alert("Enter name and code!");
+    const codeUpper = roomCode.trim().toUpperCase();
+    if (!/^[A-Z0-9]{4}$/.test(codeUpper)) return alert("Room codes are 4 letters or numbers.");
     const roomRef = ref(db, `rooms/${codeUpper}`);
 
-    const newPlayer: Player = { id: playerId, name, isHost: false };
+    if (!(await get(roomRef)).exists()) return alert(`No room found with code ${codeUpper}.`);
+
+    const newPlayer: Player = { id: playerId, name: name.trim(), isHost: false };
     await update(child(roomRef, `players/${playerId}`), newPlayer);
     setRoomCode(codeUpper);
     setJoined(true);
