@@ -1,16 +1,18 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
-import { ref, set, get, onValue, update, remove, child } from "firebase/database";
-import { v4 as uuidv4 } from "uuid";
+import { auth, db, getAppCheckToken } from "@/lib/firebase";
+import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import { ref, set, get, onValue, update, remove, child, serverTimestamp } from "firebase/database";
 import { QRCodeSVG } from "qrcode.react";
 import { Trash2, Eye, EyeOff, Crown, RefreshCw, MessageCircle, AlertTriangle, Fingerprint } from "lucide-react";
 
-type Player = { id: string; name: string; isHost: boolean; word?: string; role?: "COMMON" | "IMPOSTER"; vote?: string };
+type Player = { id: string; name: string; word?: string; role?: "COMMON" | "IMPOSTER"; vote?: string };
 type GameState = "LOBBY" | "PLAYING" | "PROMPT_REVEALED" | "VOTING" | "REVEALED";
 type RoomData = {
   code: string;
+  hostId: string;
+  createdAt: number;
   state: GameState;
   players: Record<string, Player>;
   settings: { imposters: number; type: "noun" | "question"; category: string };
@@ -41,22 +43,25 @@ export default function ImpostrApp() {
   const [loading, setLoading] = useState(false);
   const [roomData, setRoomData] = useState<RoomData | null>(null);
   const [revealCard, setRevealCard] = useState(false);
+  const [authFailed, setAuthFailed] = useState(false);
 
   useEffect(() => {
-    let storedId = localStorage.getItem("impostr_pid");
-    if (!storedId) {
-      storedId = uuidv4();
-      localStorage.setItem("impostr_pid", storedId);
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPlayerId(storedId);
-
     // The lobby QR code links to ?join=CODE
     const joinCode = new URLSearchParams(window.location.search).get("join");
     if (joinCode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRoomCode(joinCode.toUpperCase());
       window.history.replaceState({}, document.title, "/");
     }
+
+    // Anonymous sign-in gives each browser a stable uid that the database rules can check
+    return onAuthStateChanged(auth, (user) => {
+      if (user) setPlayerId(user.uid);
+      else signInAnonymously(auth).catch((e) => {
+        console.error("Anonymous sign-in failed:", e);
+        setAuthFailed(true);
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -86,10 +91,12 @@ export default function ImpostrApp() {
     if (!name.trim()) return alert("Enter a name!");
     let code = generateRoomCode();
     while ((await get(ref(db, `rooms/${code}`))).exists()) code = generateRoomCode();
-    const newPlayer: Player = { id: playerId, name: name.trim(), isHost: true };
+    const newPlayer: Player = { id: playerId, name: name.trim() };
 
     await set(ref(db, `rooms/${code}`), {
       code,
+      hostId: playerId,
+      createdAt: serverTimestamp(),
       state: "LOBBY",
       settings: { imposters: 1, type: "question", category: "" },
       players: { [playerId]: newPlayer }
@@ -106,14 +113,14 @@ export default function ImpostrApp() {
 
     if (!(await get(roomRef)).exists()) return alert(`No room found with code ${codeUpper}.`);
 
-    const newPlayer: Player = { id: playerId, name: name.trim(), isHost: false };
+    const newPlayer: Player = { id: playerId, name: name.trim() };
     await update(child(roomRef, `players/${playerId}`), newPlayer);
     setRoomCode(codeUpper);
     setJoined(true);
   };
 
   const kickPlayer = async (targetId: string) => {
-    if (!roomData?.players[playerId].isHost) return;
+    if (roomData?.hostId !== playerId) return;
     await remove(ref(db, `rooms/${roomCode}/players/${targetId}`));
   };
 
@@ -123,12 +130,11 @@ export default function ImpostrApp() {
 
     setLoading(true);
     try {
+      const [idToken, appCheckToken] = await Promise.all([auth.currentUser?.getIdToken(), getAppCheckToken()]);
       const res = await fetch("/api/generate", {
         method: "POST",
-        body: JSON.stringify({
-          type: roomData?.settings?.type || "question",
-          customPrompt: roomData?.settings?.category
-        })
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}`, "X-Firebase-AppCheck": appCheckToken },
+        body: JSON.stringify({ roomCode })
       });
       const aiData = await res.json();
       if (!res.ok) throw new Error(aiData.error || res.statusText);
@@ -176,7 +182,7 @@ export default function ImpostrApp() {
     await update(ref(db, `rooms/${roomCode}`), { state: "LOBBY", roundData: null });
   };
 
-  const amIHost = roomData?.players?.[playerId]?.isHost;
+  const amIHost = !!playerId && roomData?.hostId === playerId;
   const myPlayer = roomData?.players?.[playerId];
   const playersList = Object.values(roomData?.players || {});
   const isQuestionMode = roomData?.settings?.type === "question";
@@ -194,7 +200,7 @@ export default function ImpostrApp() {
             value={name} onChange={e => setName(e.target.value)}
           />
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={createRoom} className="bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold transition">Host Game</button>
+            <button disabled={!playerId} onClick={createRoom} className="bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold transition disabled:opacity-50">Host Game</button>
             <div className="flex flex-col gap-2">
                <input
                 className="bg-gray-700 p-3 rounded text-center outline-none uppercase"
@@ -202,9 +208,10 @@ export default function ImpostrApp() {
                 maxLength={4}
                 value={roomCode} onChange={e => setRoomCode(e.target.value)}
               />
-              <button onClick={joinRoom} className="bg-gray-600 hover:bg-gray-500 py-2 rounded font-bold">Join</button>
+              <button disabled={!playerId} onClick={joinRoom} className="bg-gray-600 hover:bg-gray-500 py-2 rounded font-bold disabled:opacity-50">Join</button>
             </div>
           </div>
+          {authFailed && <p className="text-red-400 text-sm text-center">Couldn&apos;t connect to the game server. Try refreshing.</p>}
         </div>
       </div>
     );
@@ -230,10 +237,10 @@ export default function ImpostrApp() {
           {playersList.map(p => (
             <div key={p.id} className="flex justify-between items-center bg-gray-800 p-3 rounded border border-gray-700">
               <div className="flex items-center gap-2">
-                {p.isHost && <Crown size={16} className="text-yellow-400" />}
+                {p.id === roomData.hostId && <Crown size={16} className="text-yellow-400" />}
                 <span>{p.name}</span>
               </div>
-              {amIHost && !p.isHost && (
+              {amIHost && p.id !== roomData.hostId && (
                 <button onClick={() => kickPlayer(p.id)} className="text-red-400 hover:text-red-300"><Trash2 size={18}/></button>
               )}
             </div>

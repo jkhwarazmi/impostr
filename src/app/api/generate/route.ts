@@ -1,7 +1,21 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
+import { adminAppCheck, adminAuth, adminDb } from "@/lib/firebase-admin";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Preview models get retired, so stick to a stable one and allow overriding it
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    common: { type: "string" },
+    imposter: { type: "string" },
+    category: { type: "string" },
+  },
+  required: ["common", "imposter", "category"],
+};
 
 // Each round picks one answer format so both questions get comparable answers
 const QUESTION_ARCHETYPES = [
@@ -47,11 +61,44 @@ const QUESTION_ARCHETYPES = [
   }
 ];
 
-export async function POST(req: Request) {
-  try {
-    const { type, customPrompt } = await req.json();
+type Room = { hostId: string; settings: { type: "noun" | "question"; category?: string } };
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-09-2025" });
+// Only the host of an existing room can generate prompts, using that room's settings
+async function getHostedRoom(req: Request): Promise<Room | NextResponse> {
+  const idToken = req.headers.get("authorization")?.replace(/^Bearer /, "");
+  const { roomCode } = await req.json().catch(() => ({}));
+  if (!idToken || typeof roomCode !== "string" || !/^[A-Z0-9]{4}$/.test(roomCode)) {
+    return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  }
+
+  try {
+    // consume: true rejects a token that has already been used
+    const { alreadyConsumed } = await adminAppCheck().verifyToken(req.headers.get("x-firebase-appcheck") ?? "", { consume: true });
+    if (alreadyConsumed) throw new Error("App Check token reused");
+  } catch {
+    return NextResponse.json({ error: "Request didn't come from the app" }, { status: 401 });
+  }
+
+  let uid: string;
+  try {
+    uid = (await adminAuth().verifyIdToken(idToken)).uid;
+  } catch {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
+  const room: Room | null = (await adminDb().ref(`rooms/${roomCode}`).get()).val();
+  if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+  if (room.hostId !== uid) return NextResponse.json({ error: "Only the host can start a round" }, { status: 403 });
+  return room;
+}
+
+export async function POST(req: Request) {
+  const room = await getHostedRoom(req);
+  if (room instanceof NextResponse) return room;
+
+  try {
+    const { type, category: customPrompt } = room.settings;
+
     const archetype = QUESTION_ARCHETYPES[Math.floor(Math.random() * QUESTION_ARCHETYPES.length)];
 
     let prompt = "";
@@ -110,13 +157,15 @@ export async function POST(req: Request) {
       `;
     }
 
-    const result = await model.generateContent(prompt);
-    // Gemini sometimes wraps the JSON in a markdown code block
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: { responseMimeType: "application/json", responseJsonSchema: RESPONSE_SCHEMA },
+    });
 
-    const { common, imposter, category } = JSON.parse(text);
+    const { common, imposter, category } = JSON.parse(response.text ?? "");
     if (![common, imposter, category].every((v) => typeof v === "string" && v)) {
-      throw new Error(`Incomplete response: ${text}`);
+      throw new Error(`Incomplete response: ${response.text}`);
     }
 
     return NextResponse.json({ common, imposter, category });

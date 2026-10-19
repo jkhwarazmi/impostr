@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# firebase
+.firebaserc
+.firebase/
+*-debug.log
+*firebase-adminsdk*.json

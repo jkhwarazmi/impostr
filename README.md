@@ -1,97 +1,59 @@
 # Impostr
 
-A social deduction party game you play on your phones, in the style of Spyfall.
+A Spyfall-style party game you play on your phones. Everyone gets the same question or noun except the imposter, who gets a different one with a similar kind of answer. Nobody knows which one they've got, so you all answer out loud and try to work out whose answer doesn't fit.
 
-Everyone in the room gets the same question, apart from the imposter, who gets a different one that has a similar kind of answer. Nobody is told which question they have. You all answer out loud, then the common question is revealed and you have to work out whose answer doesn't quite fit.
+**Live:** https://impostr-weld.vercel.app/
 
-**Play it here: [impostr-weld.vercel.app](https://impostr-weld.vercel.app)**
+## Screenshots
 
-## How a round works
+![Question mode: a player's question next to the imposter's](docs/screenshots/question.png)
 
-1. One person hosts a game and gets a four-letter room code and a QR code. Everyone else scans the QR code or types the code in to join.
-2. The host chooses a mode, an optional topic and how many imposters there should be (1 to 3).
-3. When the host starts the round, Gemini generates a pair of prompts. Each player taps their card to see theirs privately.
-4. Go round and answer. Once everyone has had a go, the host reveals the common prompt to the whole room.
+<p>
+  <img src="docs/screenshots/lobby.png" alt="Lobby" width="18%">
+  <img src="docs/screenshots/noun.png" alt="Noun mode: a player's word next to the imposter's" width="80%">
+</p>
+
+## How it works
+
+1. One person hosts and gets a room code and QR code. Everyone else scans it or types the code in. You need at least 3 players.
+2. The host picks a mode, an optional topic (e.g. "football" or "90s films") and how many imposters there are.
+3. When the host starts the round, Gemini writes a pair of prompts. Tap your card to see yours privately.
+4. Go round and answer. The host then reveals the common prompt to everyone.
 5. Discuss, vote for who you think the imposter is, and the host reveals the truth.
 
-### Modes
+There are two modes:
 
-**Questions** (default). The two questions are about completely unrelated things but share an answer format, so a good imposter can blend in. Each round uses one of four formats:
-
-- a count ("How many days could you survive in the wild?")
-- a price in pounds ("Price to wear a wedding dress to work tomorrow?")
-- a rating out of 10 ("On a scale of 1-10, how good are you at dancing?")
-- a percentage ("Odds you would survive on a desert island?")
-
-**Nouns.** Closer to classic Spyfall. Most players get a word and the imposter gets a related one, like Coffee and Tea.
-
-The topic box lets the host steer generation towards something specific, like "football" or "90s films".
-
-## Tech stack
-
-- [Next.js 16](https://nextjs.org) (App Router), React 19 and Tailwind CSS 4
-- [Firebase Realtime Database](https://firebase.google.com/docs/database) to sync room state between players
-- [Gemini](https://ai.google.dev) 2.5 Flash-Lite to generate prompts, called from a server route so the API key stays private
-- Hosted on [Vercel](https://vercel.com)
+- **Questions** (default): the two questions are about unrelated things but share an answer format, like a count, a price, a rating out of 10 or a percentage. "How many days could you survive in the wild?" vs "How many hours of sleep do you need?"
+- **Nouns**: closer to classic Spyfall. Most people get a word and the imposter gets a related one, like Coffee and Tea.
 
 ## Running it locally
 
-You'll need Node.js 20 or later, a Firebase project with a Realtime Database, and a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+You'll need Node.js, a [Gemini API key](https://aistudio.google.com/apikey) and a Firebase project with:
+
+- a Realtime Database created in locked mode, with the rules from `database.rules.json` deployed (`npx firebase-tools deploy --only database`)
+- Anonymous sign-in enabled under Authentication
+- a web app registered, for the client config
+- a service account key, for the API routes
+- App Check set up with reCAPTCHA Enterprise
+
+Copy `.env.example` to `.env.local` and paste in your values:
+
+| Variable | What it is |
+|----------|------------|
+| `GEMINI_API_KEY` | From Google AI Studio |
+| `GEMINI_MODEL` | Optional, defaults to `gemini-3.5-flash-lite`. Change it here if the model gets retired |
+| `NEXT_PUBLIC_FIREBASE_*` | From the web app config. The database URL is at the top of the Realtime Database page |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | The reCAPTCHA key you registered with App Check |
+| `NEXT_PUBLIC_APP_CHECK_DEBUG_TOKEN` | Optional, local only. A debug token so App Check lets localhost through |
+| `FIREBASE_CLIENT_EMAIL` | `client_email` from the service account key |
+| `FIREBASE_PRIVATE_KEY` | `private_key` from the service account key, in quotes |
+| `CRON_SECRET` | Any random string. Protects the daily cleanup job in `vercel.json` that deletes old rooms |
+
+Then:
 
 ```bash
-git clone https://github.com/jkhwarazmi/impostr.git
-cd impostr
 npm install
-cp .env.example .env.local
-```
-
-Fill in `.env.local`:
-
-| Variable | Where to find it |
-| --- | --- |
-| `GEMINI_API_KEY` | Google AI Studio. Only used on the server. |
-| `NEXT_PUBLIC_FIREBASE_*` | Firebase console, Project settings > Your apps > Web app config |
-
-Then start the dev server and open [localhost:3000](http://localhost:3000):
-
-```bash
 npm run dev
 ```
 
-To test with more than one player on your own machine, use a separate browser profile or a private window for each player, since your player ID is kept in `localStorage`.
-
-### Database rules
-
-There are no accounts, so the client reads and writes rooms directly. The Realtime Database rules need to allow that:
-
-```json
-{
-  "rules": {
-    "rooms": {
-      ".read": true,
-      ".write": true
-    }
-  }
-}
-```
-
-This means anyone with your database URL can read and edit rooms. That's fine for a party game, but don't reuse the database for anything else.
-
-## Project structure
-
-```
-src/
-├── app/
-│   ├── api/generate/route.ts   # Gemini prompt generation
-│   ├── page.tsx                # The whole game: join screen, lobby, rounds, voting
-│   ├── layout.tsx
-│   └── icon.tsx                # Favicon
-└── lib/
-    └── firebase.ts             # Firebase client setup
-```
-
-## Known limitations
-
-- Rooms are never cleaned up, so old ones stay in the database until you delete them.
-- The host's phone drives the game. If the host leaves, the room gets stuck.
-- If Gemini fails, the round starts with placeholder text and the host has to restart it.
+App Check makes sure requests to the database and the prompt generator come from the real site and not a script using the public Firebase config. `/api/generate` always checks App Check and asks for a single-use token each round, so a captured token can't be replayed.
